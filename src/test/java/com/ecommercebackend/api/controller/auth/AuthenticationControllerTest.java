@@ -107,12 +107,38 @@ public class AuthenticationControllerTest {
                         .content(mapper.writeValueAsString(body)))
                 .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
         body.setLastName("LastName");
-        //TODO: Test password characters, username length & email validity.
-        // Valid registration.
         mvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(body)))
                 .andExpect(status().is(HttpStatus.OK.value()));
+        // Invalid length password.
+        body.setPassword("BadP");
+        mvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(body)))
+                .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
+        body.setPassword("Password123");
+        // Invalid email.
+        body.setEmail("BadEmail");
+        mvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(body)))
+                .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
+        body.setEmail("AuthenticationControllerTest$testRegister@junit.com");
+        // Invalid username length.
+        body.setUsername("Bd");
+        mvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(body)))
+                .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
+        body.setUsername("AuthenticationControllerTest$testRegister");
+        // Valid password characters.
+        body.setPassword("BadPassword");
+        mvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(body)))
+                .andExpect(status().is(HttpStatus.BAD_REQUEST.value()));
+        body.setPassword("Password123");
     }
 
 }
