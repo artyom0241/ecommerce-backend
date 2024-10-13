@@ -23,8 +23,10 @@ public class WebsocketConfiguration
         implements WebSocketMessageBrokerConfigurer {
 
     private ApplicationContext context;
+    private JWTRequestFilter jwtRequestFilter;
 
-    public WebsocketConfiguration(ApplicationContext context) {
+    public WebsocketConfiguration(ApplicationContext context, JWTRequestFilter jwtRequestFilter) {
+        this.jwtRequestFilter = jwtRequestFilter;
         this.context = context;
     }
 
@@ -57,6 +59,6 @@ public class WebsocketConfiguration
         AuthorizationEventPublisher publisher =
                 new SpringAuthorizationEventPublisher(context);
         authInterceptor.setAuthorizationEventPublisher(publisher);
-        registration.interceptors(authInterceptor);
+        registration.interceptors(jwtRequestFilter, authInterceptor);
     }
 }
