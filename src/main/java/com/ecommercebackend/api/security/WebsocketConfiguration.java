@@ -26,34 +26,60 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 import java.util.Map;
 
+/**
+ * Class to configure spring websockets.
+ */
 @Configuration
 @EnableWebSocket
 @EnableWebSocketMessageBroker
 public class WebsocketConfiguration
         implements WebSocketMessageBrokerConfigurer {
 
+    /** The Application Context. */
     private ApplicationContext context;
+    /** The JWT Request Filter. */
     private JWTRequestFilter jwtRequestFilter;
+    /** The User Service. */
     private UserService userService;
+    /** Matcher instance. */
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
 
-    public WebsocketConfiguration(ApplicationContext context, JWTRequestFilter jwtRequestFilter, UserService userService) {
-        this.jwtRequestFilter = jwtRequestFilter;
+    /**
+     * Default constructor for spring injection.
+     * @param context
+     * @param jwtRequestFilter
+     * @param userService
+     */
+    public WebsocketConfiguration(ApplicationContext context,
+                                  JWTRequestFilter jwtRequestFilter,
+                                  UserService userService) {
         this.context = context;
+        this.jwtRequestFilter = jwtRequestFilter;
         this.userService = userService;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/websocket").setAllowedOriginPatterns("**").withSockJS();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.enableSimpleBroker("/topic");
         registry.setApplicationDestinationPrefixes("/app");
     }
 
+    /**
+     * Creates an AuthorizationManager for managing authentication required for
+     * specific channels.
+     * @return The AuthorizationManager object.
+     */
     private AuthorizationManager<Message<?>> makeMessageAuthorizationManager() {
         MessageMatcherDelegatingAuthorizationManager.Builder messages =
                 new MessageMatcherDelegatingAuthorizationManager.Builder();
@@ -63,10 +89,13 @@ public class WebsocketConfiguration
         return messages.build();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        AuthorizationManager<Message<?>> authorizationManager
-                = makeMessageAuthorizationManager();
+        AuthorizationManager<Message<?>> authorizationManager =
+                makeMessageAuthorizationManager();
         AuthorizationChannelInterceptor authInterceptor =
                 new AuthorizationChannelInterceptor(authorizationManager);
         AuthorizationEventPublisher publisher =
@@ -77,46 +106,69 @@ public class WebsocketConfiguration
                 new DestinationLevelAuthorizationChannelInterceptor());
     }
 
-    private class RejectClientMessagesOnChannelsChannelInterceptor implements ChannelInterceptor {
+    /**
+     * Interceptor for rejecting client messages on specific channels.
+     */
+    private class RejectClientMessagesOnChannelsChannelInterceptor
+            implements ChannelInterceptor {
 
-        private String[] paths = new String[]{"/topic/user/*/address"};
+        /** Paths that do not allow client messages. */
+        private String[] paths = new String[] {
+                "/topic/user/*/address"
+        };
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public Message<?> preSend(Message<?> message, MessageChannel channel) {
             if (message.getHeaders().get("simpMessageType").equals(SimpMessageType.MESSAGE)) {
-                String destination = (String) message.getHeaders().get("simpDestination");
-                for (String path : paths) {
-                    if (MATCHER.match(path, destination)) {
+                String destination = (String) message.getHeaders().get(
+                        "simpDestination");
+                for (String path: paths) {
+                    if (MATCHER.match(path, destination))
                         message = null;
-                    }
                 }
             }
             return message;
         }
+
     }
 
-    private class DestinationLevelAuthorizationChannelInterceptor implements ChannelInterceptor {
+    /**
+     * Interceptor to apply authorization and permissions onto specific
+     * channels and path variables.
+     */
+    private class DestinationLevelAuthorizationChannelInterceptor
+            implements ChannelInterceptor {
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public Message<?> preSend(Message<?> message, MessageChannel channel) {
             if (message.getHeaders().get("simpMessageType").equals(SimpMessageType.SUBSCRIBE)) {
-                String destination = (String) message.getHeaders().get("simpDestination");
-                Map<String, String> params = MATCHER.extractUriTemplateVariables(
-                        "/topic/user/{userId}/**", destination);
-                try {
-                    Long userId = Long.valueOf(params.get("userId"));
-                    Authentication authentication =
-                            SecurityContextHolder.getContext().getAuthentication();
-                    if (authentication != null) {
-                        LocalUser user = (LocalUser) authentication.getPrincipal();
-                        if (!userService.userHasPermissionToUser(userId, user)) {
+                String destination = (String) message.getHeaders().get(
+                        "simpDestination");
+                String userTopicMatcher = "/topic/user/{userId}/**";
+                if (MATCHER.match(userTopicMatcher, destination)) {
+                    Map<String, String> params = MATCHER.extractUriTemplateVariables(
+                            userTopicMatcher, destination);
+                    try {
+                        Long userId = Long.valueOf(params.get("userId"));
+                        Authentication authentication =
+                                SecurityContextHolder.getContext().getAuthentication();
+                        if (authentication != null) {
+                            LocalUser user = (LocalUser) authentication.getPrincipal();
+                            if (!userService.userHasPermissionToUser(userId, user)) {
+                                message = null;
+                            }
+                        } else {
                             message = null;
                         }
-                    } else {
+                    } catch (NumberFormatException ex) {
                         message = null;
                     }
-                } catch (NumberFormatException ex) {
-                    message = null;
                 }
             }
             return message;
