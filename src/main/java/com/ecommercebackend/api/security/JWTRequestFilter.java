@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -72,13 +73,15 @@ public class JWTRequestFilter extends OncePerRequestFilter implements ChannelInt
 
   @Override
   public Message<?> preSend(Message<?> message, MessageChannel channel) {
-    Map nativeHeaders = (Map) message.getHeaders().get("nativeHeaders");
-    // TODO: Limit this to only CONNECT messages.
-    if (nativeHeaders != null) {
-      List authTokenList = (List) nativeHeaders.get("Authorization");
-      if (authTokenList != null) {
-        String tokenHeader = (String) authTokenList.get(0);
-        checkToken(tokenHeader);
+    if (message.getHeaders().get("simpMessageType").equals(SimpMessageType.CONNECT)) {
+      Map nativeHeaders = (Map) message.getHeaders().get("nativeHeaders");
+
+      if (nativeHeaders != null) {
+        List authTokenList = (List) nativeHeaders.get("Authorization");
+        if (authTokenList != null) {
+          String tokenHeader = (String) authTokenList.get(0);
+          checkToken(tokenHeader);
+        }
       }
     }
     return message;
